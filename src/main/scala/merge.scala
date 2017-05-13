@@ -25,21 +25,21 @@ object TryFS2 extends App {
 
   {
     println("Pure stream")
-    val acquireA = Task.delay { println("acquire A"); () }
-    val acquireB = Task.delay { println("acquire B"); () }
-    val releaseA = Task.delay { println("release A"); () }
-    val releaseB = Task.delay { println("release B"); () }
-    val streamA =
-      Stream.bracket(acquireA)(_ => Stream(1, 3, 5, 7, 9, 11, 12),
-                               _ => releaseA)
-    val streamB =
-      Stream.bracket(acquireB)(_ => Stream(-1, 0, 2, 4, 6, 8), _ => releaseB)
+    val acquire1 = Task.delay { println("acquire 1"); () }
+    val acquire2 = Task.delay { println("acquire 2"); () }
+    val release1 = Task.delay { println("release 1"); () }
+    val release2 = Task.delay { println("release 2"); () }
+    val stream1 =
+      Stream.bracket(acquire1)(_ => Stream("a", "c", "e", "g"),
+                               _ => release1).map{x => println("pull stream 1: "+x);x}
+    val stream2 =
+      Stream.bracket(acquire2)(_ => Stream("b", "d", "f", "h"), _ => release2).map{x => println("pull stream 2: "+x);x}
 
-    val flat =  mergeSorted2(implicitly[Ordering[Int]]).apply(streamA, streamB)
+    val flat =  mergeSorted2(implicitly[Ordering[String]]).apply(stream1 ,stream2)
       .map { x =>
         println("emit " + x); x
       }
-    assert(flat.runLog.unsafeRunSync == Right(Vector(-1,0,1,2,3,4,5,6,7,8,9,11,12)))
+    assert(flat.runLog.unsafeRunSync == Right(Vector("a","b","c","d","e","f","g","h")))
   }
 
   {
@@ -68,18 +68,18 @@ object TryFS2 extends App {
       .through(text.utf8Decode)
       .through(text.lines)
       .map { x =>
-        println("read from file A: " + x); x
+        println("pull stream 1: " + x); x
       }
-      .onFinalize(Task.delay { println("finalize file A"); () })
+      .onFinalize(Task.delay { println("finalize stream 1"); () })
 
     val stream2 = io.file
       .readAll[Task](file2, 4096)
       .through(text.utf8Decode)
       .through(text.lines)
       .map { x =>
-        println("read from file B: " + x); x
+        println("pull stream 2: " + x); x
       }
-      .onFinalize(Task.delay { println("finalize file B"); () })
+      .onFinalize(Task.delay { println("finalize stream 2"); () })
 
     val flat =
       mergeSorted2(implicitly[Ordering[String]])
